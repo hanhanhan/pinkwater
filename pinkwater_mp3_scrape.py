@@ -3,16 +3,34 @@
 import requests
 import os
 import webbrowser
-from selenium import webdriver
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, SoupStrainer
+from fake_useragent import UserAgent
 
-browser = webdriver.Firefox()
-browser.get('http://www.pinkwater.com/podcast/audioarchive.php')
+def main:
+    '''
+    Get options for books
+    send book selection in header
+    Get URLs of each book chapter
+    Cache in file
+    make folder for book in directory if doesn't exist
+    check if chapter mp3 file exists
+    get if doesn't exist  
+    '''
+
+    if not os.path.exists('./DanielPinkwaterAudiobooks'):
+        os.mkdir('DanielPinkwaterAudiobooks')
+    os.path.join(DanielPinkwaterAudiobooks)
+    if not os.path.exists('./DanielPinkwaterAudiobooks/audiobook_list'):
+        os.path.join()
+r = requests.get('http://www.pinkwater.com/podcast/audioarchive.php')
+
+strainer = SoupStrainer('option')
+indexsoup = BeautifulSoup(r.text, 'lxml', parse_only=strainer)
+audiobook_list = [ book.text for book in indexsoup.find_all('option')]
 
 book_elem = browser.find_elements_by_tag_name('option')
 
-if not os.path.exists('./DanielPinkwaterAudiobooks'):
-    os.mkdir('./DanielPinkwaterAudiobooks')
+
 
 #I tried to write this more elegantly as
 #for book in book_elem:
@@ -28,6 +46,8 @@ for book in range(len(book_elem)):
 
     r = requests.get(browser.current_url)
     booksoup = BeautifulSoup(r.text, 'html.parser')
+
+
     #Get links for each chapter
     #It would be better to search by .mp3 per page
     #this disappears unless I recreate it. why?
@@ -73,4 +93,8 @@ for book in range(len(book_elem)):
         
         print(len(mp3_links), "# of chapter")
         book_elem = browser.find_elements_by_tag_name('Option')
+
+
+if __name__ == '__main__':
+    main()
         
