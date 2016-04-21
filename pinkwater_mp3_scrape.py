@@ -36,13 +36,14 @@ def get_book_list():
 def get_book_page(book_option):
     ''' Does not return book specific page with mp3 file index
     '''
+    #Should I return file path or text (not sure how to get that)
+
     #check if page is already cached, get if not
     book_html = get_filesafe_name(book_option)
-    book_html_dir_name = 'bookpages'
-    book_html_relativepath = os.path.join(book_html_dir_name, book_html)
+    book_html_dir = 'bookpages'
+    book_html_relativepath = os.path.join(book_html_dir, book_html)
 
-    if not os.path.exists(book_html_dir_name):
-        os.mkdir(book_html_dir_name)
+    filepath_check(book_html_dir)
 
     if not os.path.exists(book_html_relativepath):
         #Write the file to the directory
@@ -54,28 +55,25 @@ def get_book_page(book_option):
         with open(book_html_relativepath,'w') as file:
             file.write(response.text)
 
-def parse_page():
+    #return response.text / how do I load this?
+    return book_html_relativepath
+
+def parse_page(book_html_relativepath):
 
     #need to test the 'href'=True part
     strainer = SoupStrainer('a', 'href=True')
-    book_page_soup = BeautifulSoup(r.text, 'lxml', parse_only=strainer)
 
-    return book_page_soup
-
-def get_filesafe_name(link):
-    reg = re.findall('\w*', link)
-    filesafe_name_url = ''.join(reg) + '.html'
-
-    return filesafe_name_url
-
-def get_mp3s(book_page_soup):
+    with open(book_html_relativepath, 'r') as file:
+        book_page_soup = BeautifulSoup(file, 'lxml', parse_only=strainer)
 
     audiobook_chapters = {}
-    d
-    for link in indexsoup.a:
+    
+    for link in book_page_soup:
         #either ue this or the strainer with 'href'=True
         #if 'href' in getattr(link, 'attrs', {}):
         if '.mp3' in link['href']:
+            get_filesafe_name(link.string)
+
             #Map URL to chapter title 
             #to test
             audiobook_chapters[ link['href'] ] = link.text
@@ -101,6 +99,19 @@ def make_book_directory(book):
 
     return audiobook_subdirectory
 
+def get_filesafe_name(link):
+    reg = re.findall('\w*', link)
+    filesafe_name_url = ''.join(reg) + '.html'
+
+    return filesafe_name_url
+
+def filepath_check(path):
+    if os.path.exists(path):
+        return True
+    
+    os.mkdir(path)
+    return False
+
 def main():
     ''' Get audiobook files from Daniel Pinkwater's site and save in 
     '''
@@ -110,9 +121,17 @@ def main():
     #Get page for book listing all mp3 audiobook chapters
     #Doesn't work yet
     for option in book_options:
-        get_book_page(option)
+        
+        #Make directory for chapter files for each audiobook
         audiobook_dir = make_book_directory(option)
-        links_or_soup = parse_page()
+        
+        #Get cached or requested html file with audiobook files
+        mp3s_page = get_book_page(option)
+        
+        #Parse out mp3 URLs from html
+        links_or_soup = parse_page(mp3s_page)
+        
+        #Loop through each mp3 url to make sure it's saved in directory
         get_mp3s(links_or_soup)
 
 if __name__ == '__main__':
