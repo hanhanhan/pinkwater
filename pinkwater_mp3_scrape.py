@@ -5,11 +5,10 @@ import os
 import webbrowser
 import re
 import json
-from bs4 import BeautifulSoup, SoupStrainer
+from bs4 import BeautifulSoup, SoupStrainer #requires lxml
 from fake_useragent import UserAgent
-
-def get_book_audiofiles_index():
-    pass
+import eyeD3
+#from pydub import AudioSegment
 
 def get_book_list():
     ''' Get list of all audiobooks from drop-down options
@@ -24,11 +23,10 @@ def get_book_list():
   
     strainer = SoupStrainer('option')
     indexsoup = BeautifulSoup(r.text, 'lxml', parse_only=strainer)
-
-
+    
     book_options = []
     for book in indexsoup.find_all('option'):
-        book_options.append(book)
+        book_options.append(book.text)
 
     with open(booklist, 'w') as f:
         json.dump(book_options, f)
@@ -63,8 +61,9 @@ def get_book_page(book_option):
 
     return book_html_relativepath
 
-def parse_page(book='Wempires', book_folder_path='DanielPinkwaterAudiobooks/Wempires', book_html_relativepath='bookpages/Wempires.html'):
+def parse_page(book, book_folder_path, book_html_relativepath):
     ''' Get the urls for each chapter of the audiobook from webpage.
+    Write each chapter to file.
     '''
 
     strainer = SoupStrainer('a')
@@ -72,22 +71,22 @@ def parse_page(book='Wempires', book_folder_path='DanielPinkwaterAudiobooks/Wemp
     with open(book_html_relativepath, 'r') as file:
         book_page_soup = BeautifulSoup(file, 'lxml', parse_only=strainer)
 
-    #for future use labelling mp3s
-    audiobook_chapters = {}
-    audiobook_chapters['author'] = 'Daniel Pinkwater'
-    audiobook_chapters['album'] = book
+    mp3_paths = []
 
     for link in book_page_soup:
         if 'attrs' in link.__dict__.keys():
             if 'href' in link.attrs and 'mp3' in link.attrs['href']:
                 #Get filesafe name for mp3 combining book+chapter names
                 filesafe_book = get_filesafe_name(book)
-                mp3_name = filesafe_book+'_'+link.text+'.mp3'
+                filesafe_mp3name = get_filesafe_name(link.text)
+                mp3_name = filesafe_book+'_'+filesafe_mp3name+'.mp3'
                  
                 #Exit function if file is already saved.
                 mp3_path = os.path.join(book_folder_path, mp3_name)
+                mp3_paths.append(mp3_path)
+
                 if os.path.exists(mp3_path):
-                    return
+                    continue
                 #Get url for mp3 file
                 url = 'http://www.pinkwater.com/podcast/' + link.attrs['href']
                 response = requests.get(url)
@@ -95,7 +94,7 @@ def parse_page(book='Wempires', book_folder_path='DanielPinkwaterAudiobooks/Wemp
                 with open(mp3_path,'wb') as file:
                     file.write(response.content)
 
-                audiobook_chapters['book_and_chapter'] = 'url'
+    return mp3_paths
 
 def make_book_directory(book):
     ''' Make a DanielPinkwaterAudiobook folder, and make individual book folder
@@ -124,6 +123,15 @@ def filepath_check(path):
     
     os.mkdir(path)
 
+def label_mp3(filepaths, book):
+    ''' Give file ID3 labels.
+    '''
+    mp3_tags = {'artist':'Daniel Pinkwater', 'album':book, 'genre':'Books & Spoken'}
+    
+    for path in filepaths:
+        print(path)
+        sound_object = AudioSegment.from_file(path, format='mp3')
+        sound_object.export(path, tags=mp3_tags, format='mp3')
 
 def main():
     ''' Get audiobook files from Daniel Pinkwater's site.
@@ -134,6 +142,7 @@ def main():
     filepath_check('DanielPinkwaterAudiobooks')
 
     for book in book_options:
+        print(book)
 
         #Get cached or requested html file with audiobook mp3 chapters listed
         mp3s_page = get_book_page(book)
@@ -143,10 +152,15 @@ def main():
         book_folder_path = os.path.join('DanielPinkwaterAudiobooks', book_folder)
         filepath_check(book_folder_path)
 
-        print(book)
+        print('getting mp3s')
+        
         #Parse out mp3 URLs from html, and save mp3 if not already saved.
-        parse_page(book, book_folder_path, mp3s_page)
-
+        mp3_paths = parse_page(book, book_folder_path, mp3s_page)
+        
+        print('labelling book')
+        
+        #Reopen file as AudioSegment and give ID3 labels.
+        label_mp3(mp3_paths, book)
 
 if __name__ == '__main__':
     main()
