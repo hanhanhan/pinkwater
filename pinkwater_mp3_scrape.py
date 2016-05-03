@@ -8,10 +8,12 @@ import json
 from bs4 import BeautifulSoup, SoupStrainer #requires lxml
 from fake_useragent import UserAgent
 import mutagen
+from mutagen.easyid3 import EasyID3
 
-#change to absolute path
+# file path
 DOWNLOAD_DIR = 'DanielPinkwaterAudiobooks'
-#make constant for web page
+# constant for web page
+DANIEL_PINKWATER_SITE = 'http://www.pinkwater.com/podcast/audioarchive.php'
 
 def get_book_list():
     ''' Get list of all audiobooks from drop-down options
@@ -22,7 +24,7 @@ def get_book_list():
         with open(booklist, 'r') as f:
             return json.load(f)
 
-    r = requests.get('http://www.pinkwater.com/podcast/audioarchive.php')
+    r = requests.get(DANIEL_PINKWATER_SITE)
   
     strainer = SoupStrainer('option')
     indexsoup = BeautifulSoup(r.text, 'lxml', parse_only=strainer)
@@ -94,10 +96,8 @@ def get_mp3s(mp3_urls, book):
     filesafe_book = get_filesafe_name(book)
 
     #Make directory for chapter files for each audiobook
-    book_folder = get_filesafe_name(book)
-    book_folder_path = os.path.join(DOWNLOAD_DIR, book_folder)
-    filepath_check(book_folder_path)
-
+    book_folder_path = make_book_directory(book)
+    
     for url, chapter in mp3_urls: 
         filesafe_mp3name = get_filesafe_name(chapter)
         mp3_name = filesafe_book+'_'+filesafe_mp3name+'.mp3'
@@ -105,7 +105,7 @@ def get_mp3s(mp3_urls, book):
         #Exit function if file is already saved.
         mp3_path = os.path.join(book_folder_path, mp3_name)
 
-        if os.path.exists(mp3_path):
+        if os.path.exists(mp3_path) and os.stat(mp3_path).st_size > 0:
             continue
 
         response = requests.get(url)
@@ -137,18 +137,31 @@ def get_filesafe_name(name, suffix=''):
 def filepath_check(path):
     if os.path.exists(path):
         return 
-    
+
     os.mkdir(path)
 
-def label_mp3(filepaths, book):
+def label_mp3(book):
     ''' Give file ID3 labels.
     '''
-    mp3_tags = {'artist':'Daniel Pinkwater', 'album':book, 'genre':'Books & Spoken'}
+    mp3_tags = {'artist':'Daniel Pinkwater', 
+    'album':book, 'genre':'Books & Spoken'}
+
+    book_folder_path = make_book_directory(book)
     
-    for path in filepaths:
-        print(path)
-        sound_object = AudioSegment.from_file(path, format='mp3')
-        sound_object.export(path, tags=mp3_tags, format='mp3')
+    for path in os.listdir(book_folder_path):
+        chapter_path = os.path.join(book_folder_path, path)
+
+        try:
+            mp3_tags = EasyID3(chapter_path)
+        except mutagen.id3.ID3NoHeaderError:
+            mp3_tags = mutagen.File(chapter_path, easy=True)
+            mp3_tags.add_tags()
+
+        mp3_tags['artist'] = 'Daniel Pinkwater'
+        mp3_tags['genre'] = 'Books & Spoken'
+        mp3_tags['album'] = book
+
+        mp3_tags.save()
 
 def main():
     ''' Get audiobook files from Daniel Pinkwater's site.
@@ -165,8 +178,6 @@ def main():
         #Get cached or requested html file with audiobook mp3 chapters listed
         #get_html_for_book(book)
         mp3s_page = get_book_page(book)
-
-        print('getting mp3s')
         
         #Parse out mp3 URLs from html
         mp3_urls = get_mp3_urls(mp3s_page)
@@ -174,10 +185,8 @@ def main():
         #Save mp3 if not already saved.
         get_mp3s(mp3_urls, book)
         
-        print('labelling book')
-        
-        # #Reopen file and give ID3 labels.
-        # label_mp3(mp3_paths, book)
+        #Reopen file and give ID3 labels.
+        label_mp3(book)
 
 if __name__ == '__main__':
     main()
