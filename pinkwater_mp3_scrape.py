@@ -1,4 +1,5 @@
-"""Pull Daniel Pinkwater audiobooks off his website."""
+"""Pull Daniel Pinkwater audiobooks off his website into your current directory. Donation strongly encouraged."""
+
 
 import requests
 import os
